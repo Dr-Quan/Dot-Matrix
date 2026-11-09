@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8" />
+  <title>16×160 点阵 LED 模拟屏</title>
+  <style>
+    :root {
+      --bg-color: #0f172a;
+      --panel-bg: rgba(30, 41, 59, 0.7);
+      --border-color: rgba(255, 255, 255, 0.1);
+      --text-color: #f8fafc;
+      --text-muted: #94a3b8;
+      --accent-color: #38bdf8;
+      --accent-hover: #0ea5e9;
+    }
+
+    body {
+      background: var(--bg-color);
+      color: var(--text-color);
+      text-align: center;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      padding: 30px 20px;
+      margin: 0;
+    }
+
+    h2 {
+      margin-bottom: 24px;
+      font-weight: 600;
+      letter-spacing: 1px;
+      color: #f1f5f9;
+      text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+    }
+
+    canvas {
+      background: #000;
+      display: block;
+      margin: 0 auto 30px;
+      border: 3px solid #1e293b;
+      border-radius: 8px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6), 0 0 20px rgba(56, 189, 248, 0.05);
+      max-width: 95vw;
+      height: auto;
+    }
+
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 16px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .control-group {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 16px 20px;
+      background: var(--panel-bg);
+      backdrop-filter: blur(8px);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
+    }
+
+    .control-group label {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    input[type="text"], select {
+      background: #0f172a;
+      color: var(--text-color);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-size: 15px;
+      outline: none;
+      transition: all 0.2s ease;
+    }
+
+    input[type="text"]:focus, select:focus {
+      border-color: var(--accent-color);
+      box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.2);
+    }
+
+    button {
+      background: var(--accent-color);
+      color: #0f172a;
+      border: none;
+      border-radius: 8px;
+      padding: 9px 16px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+
+    button:hover {
+      background: var(--accent-hover);
+      transform: translateY(-1px);
+    }
+
+    button:active {
+      transform: translateY(0);
+    }
+
+    .button-row {
+      display: flex;
+      gap: 8px;
+    }
+
+    .speed-control {
+      width: 160px;
+      accent-color: var(--accent-color);
+      cursor: pointer;
+    }
+
+    #speedValue {
+      margin-top: 6px;
+      font-weight: 600;
+      color: var(--accent-color);
+      font-size: 14px;
+    }
+
+    .color-buttons {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      height: 38px;
+    }
+
+    .color-button {
+      width: 28px;
+      height: 28px;
+      border: 2px solid transparent;
+      border-radius: 50%;
+      cursor: pointer;
+      transition: transform 0.2s ease, border-color 0.2s ease;
+    }
+
+    .color-button:hover {
+      transform: scale(1.1);
+    }
+
+    .color-button.selected {
+      border-color: #ffffff;
+      transform: scale(1.15);
+      box-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+    }
+  </style>
+</head>
+<body>
+
+  <h2>16×160 点阵 LED 模拟屏</h2>
+  <canvas id="ledCanvas" width="1600" height="160"></canvas>
+
+  <div class="controls">
+    <!-- 文字输入与控制 -->
+    <div class="control-group">
+      <label>内容输入</label>
+      <input type="text" id="textInput" placeholder="输入要显示的汉字" size="26" />
+      <div class="button-row" style="margin-top: 8px;">
+        <button onclick="startDisplay()">开始显示</button>
+        <button onclick="stopDisplay()" style="background: #475569; color: #fff;">停止</button>
+      </div>
+    </div>
+
+    <!-- 显示模式 -->
+    <div class="control-group">
+      <label>显示模式</label>
+      <select id="modeSelect">
+        <option value="static">静态显示</option>
+        <option value="left">向左滚动</option>
+        <option value="right">向右滚动</option>
+        <option value="up">向上滚动</option>
+        <option value="down">向下滚动</option>
+      </select>
+    </div>
+
+    <!-- 静态对齐方式 -->
+    <div class="control-group">
+      <label>静态对齐方式</label>
+      <select id="alignSelect">
+        <option value="left">左对齐</option>
+        <option value="center">居中</option>
+        <option value="right">右对齐</option>
+      </select>
+    </div>
+
+    <!-- 动画速度 -->
+    <div class="control-group">
+      <label>动画速度</label>
+      <input type="range" id="speedControl" class="speed-control" min="1" max="20" value="5">
+      <span id="speedValue">5</span>
+    </div>
+
+    <!-- LED 颜色 -->
+    <div class="control-group">
+      <label>LED颜色</label>
+      <div class="color-buttons">
+        <!-- 修复点：传入了 this -->
+        <div class="color-button selected" style="background-color: #FF0000;" onclick="changeColor('#FF0000', this)"></div>
+        <div class="color-button" style="background-color: #FFA500;" onclick="changeColor('#FFA500', this)"></div>
+        <div class="color-button" style="background-color: #FFFF00;" onclick="changeColor('#FFFF00', this)"></div>
+        <div class="color-button" style="background-color: #00FF00;" onclick="changeColor('#00FF00', this)"></div>
+        <div class="color-button" style="background-color: #0000FF;" onclick="changeColor('#0000FF', this)"></div>
+      </div>
+    </div>
+
+    <!-- 导出功能 -->
+    <div class="control-group">
+      <label>数据导出</label>
+      <div class="button-row">
+        <button onclick="exportPNG()" style="background: #334155; color: #f8fafc;">导出PNG</button>
+        <button onclick="exportGIF()" style="background: #334155; color: #f8fafc;">导出GIF</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 修复点：补上了隐藏的日志框，防止找不到 id="log" 报错 -->
+  <textarea id="log" style="display:none;"></textarea>
+
+  <script src="https://cdn.jsdelivr.net/npm/gif.js.optimized/dist/gif.js"></script>
+
+  <script>
+    const canvas = document.getElementById("ledCanvas");
+    const ctx = canvas.getContext("2d");
+    const logBox = document.getElementById("log");
+    const speedControl = document.getElementById("speedControl");
+    const speedValue = document.getElementById("speedValue");
+    const modeSelect = document.getElementById("modeSelect");
+    const alignSelect = document.getElementById("alignSelect");
+
+    const DOT_SIZE = 10;
+    
+    function getScreenSize() {
+      return {
+        screenW: Math.round(canvas.width / DOT_SIZE),
+        screenH: Math.round(canvas.height / DOT_SIZE)
+      };
+    }
+
+    function getCOLS() { return getScreenSize().screenW; }
+    function getROWS() { return getScreenSize().screenH; }
+
+    let animationId;
+    let currentColor = "#FF0000";
+    let currentBuffer = [];
+    let isAnimating = false;
+
+    speedControl.addEventListener("input", function() {
+      speedValue.textContent = this.value;
+    });
+
+    function logError(message) {
+      if (logBox) logBox.value += message + "\n";
+    }
+
+    function clearLog() {
+      if (logBox) logBox.value = '';
+    }
+
+    // 修复点：接收 element 参数
+    function changeColor(color, element) {
+      currentColor = color;
+      document.querySelectorAll(".color-button").forEach(btn => {
+        btn.classList.remove("selected");
+      });
+      if (element) {
+        element.classList.add("selected");
+      }
+      
+      if (currentBuffer.length > 0) {
+        const mode = modeSelect.value;
+        const align = alignSelect.value;
+        if (mode === "static") {
+          renderStatic(currentBuffer, align);
+        } else {
+          renderBuffer(currentBuffer);
+        }
+      }
+    }
+
+    function drawDot(x, y, isOn) {
+      ctx.beginPath();
+      ctx.arc(x, y, DOT_SIZE / 2 - 1, 0, Math.PI * 2);
+      ctx.fillStyle = isOn ? currentColor : "#555";
+      ctx.fill();
+    }
+
+    function clearCanvas() {
+      ctx.fillStyle = "#000";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+
+    function renderBuffer(buffer, offsetX = 0, offsetY = 0) {
+      try {
+        clearCanvas();
+        const COLS = getCOLS();
+        const ROWS = getROWS();
+        for (let y = 0; y < ROWS; y++) {
+          for (let x = 0; x < COLS; x++) {
+            const bx = x + offsetX;
+            const by = y + offsetY;
+            if (by >= 0 && by < buffer.length && bx >= 0 && bx < buffer[0].length) {
+              const isOn = buffer[by][bx] === 1;
+              drawDot(x * DOT_SIZE + DOT_SIZE / 2, y * DOT_SIZE + DOT_SIZE / 2, isOn);
+            } else {
+              drawDot(x * DOT_SIZE + DOT_SIZE / 2, y * DOT_SIZE + DOT_SIZE / 2, false);
+            }
+          }
+        }
+      } catch (e) {
+        logError("错误3：无法将数组传递至点阵");
+        console.error(e);
+      }
+    }
+
+    function renderStatic(buffer, align) {
+      const COLS = getCOLS();
+      const ROWS = getROWS();
+      const contentWidth = buffer[0].length;
+      let offsetX = 0;
+      
+      if (align === "center") {
+        offsetX = Math.floor((COLS - contentWidth) / 2);
+      } else if (align === "right") {
+        offsetX = COLS - contentWidth;
+      }
+      
+      offsetX = Math.max(0, offsetX);
+      const displayBuffer = Array.from({ length: ROWS }, () => Array(COLS).fill(0));
+      
+      for (let y = 0; y < ROWS; y++) {
+        for (let x = 0; x < contentWidth; x++) {
+          if (x + offsetX < COLS) {
+            displayBuffer[y][x + offsetX] = buffer[y][x];
+          }
+        }
+      }
+      
+      renderBuffer(displayBuffer);
+    }
+
+    function renderDefaultGrayGrid() {
+      const emptyBuffer = Array.from({ length: getROWS() }, () =>
+        Array(getCOLS()).fill(0)
+      );
+      renderBuffer(emptyBuffer);
+    }
+
+    async function loadCharBitmap(char) {
+      const size = 16;
+      const tmpCanvas = document.createElement("canvas");
+      tmpCanvas.width = size;
+      tmpCanvas.height = size;
+      const tmpCtx = tmpCanvas.getContext("2d");
+
+      tmpCtx.fillStyle = "white";
+      tmpCtx.fillRect(0, 0, size, size);
+      tmpCtx.font = `${size}px "新宋体", sans-serif`;
+      tmpCtx.fillStyle = "black";
+      tmpCtx.textBaseline = "top";
+      tmpCtx.fillText(char, 0, 0);
+
+      const imageData = tmpCtx.getImageData(0, 0, size, size).data;
+      const bitmap = [];
+
+      for (let y = 0; y < size; y++) {
+        const row = [];
+        for (let x = 0; x < size; x++) {
+          const index = (y * size + x) * 4;
+          const r = imageData[index];
+          const g = imageData[index + 1];
+          const b = imageData[index + 2];
+          const brightness = 0.299 * r + 0.587 * g + 0.114 * b;
+          row.push(brightness < 160 ? 1 : 0);
+        }
+        bitmap.push(row);
+      }
+
+      return bitmap;
+    }
+
+    async function buildBuffer(text) {
+      const buffer = Array.from({ length: 16 }, () => []);
+      for (const ch of text) {
+        try {
+          const charBuffer = await loadCharBitmap(ch);
+          for (let y = 0; y < 16; y++) {
+            buffer[y].push(...charBuffer[y]);
+          }
+        } catch (e) {
+          logError(`字符 "${ch}" 渲染失败`);
+          for (let y = 0; y < 16; y++) {
+            buffer[y].push(...Array(16).fill(0));
+          }
+        }
+      }
+      return buffer;
+    }
+
+    function stopDisplay() {
+      cancelAnimationFrame(animationId);
+      isAnimating = false;
+    }
+
+    function getStartOffset(mode, contentWidth, contentHeight) {
+      const { screenW, screenH } = getScreenSize();
+      switch (mode) {
+        case "left":  return { x: -screenW,     y: 0 };
+        case "right": return { x: contentWidth,   y: 0 };
+        case "up":    return { x: 0, y: -screenH };
+        case "down":  return { x: 0, y: contentHeight };
+      }
+      return { x: 0, y: 0 };
+    }
+
+    function stepOffset(mode, offset, contentWidth, contentHeight) {
+      const { screenW, screenH } = getScreenSize();
+      switch (mode) {
+        case "left":
+          offset.x++;
+          if (offset.x >= contentWidth) offset.x = -screenW;
+          break;
+        case "right":
+          offset.x--;
+          if (offset.x <= -screenW) offset.x = contentWidth;
+          break;
+        case "up":
+          offset.y++;
+          if (offset.y >= contentHeight) offset.y = -screenH;
+          break;
+        case "down":
+          offset.y--;
+          if (offset.y <= -screenH) offset.y = contentHeight;
+          break;
+      }
+    }
+
+    async function startDisplay() {
+      clearLog();
+      stopDisplay();
+      const text = document.getElementById("textInput").value.trim();
+      const mode = modeSelect.value;
+      const align = alignSelect.value;
+      const speed = parseInt(speedControl.value);
+      
+      if (!text) {
+        logError("请输入要显示的文字");
+        alert("请输入要显示的文字！"); // 顺便弹窗提示，直观一点
+        return;
+      }
+
+      try {
+        currentBuffer = await buildBuffer(text);
+        
+        if (mode === "static") {
+          renderStatic(currentBuffer, align);
+          return;
+        }
+
+        isAnimating = true;
+        
+        const contentWidth = currentBuffer[0].length;
+        const contentHeight = currentBuffer.length;
+        
+        const offset = getStartOffset(mode, contentWidth, contentHeight);
+
+        let lastTime = 0;
+        const interval = 100 / speed;
+
+        function animate(ts) {
+          if (!isAnimating) return;
+          animationId = requestAnimationFrame(animate);
+
+          if (ts - lastTime < interval) return;
+          lastTime = ts;
+          
+          stepOffset(mode, offset, contentWidth, contentHeight);
+          renderBuffer(currentBuffer, offset.x, offset.y);
+        }
+
+        animationId = requestAnimationFrame(animate);
+      } catch (e) {
+        logError("未知错误：无法启动显示");
+        console.error(e);
+      }
+    }
+
+    function exportPNG() {
+      const link = document.createElement("a");
+      link.download = "led_display.png";
+      link.href = canvas.toDataURL("image/png");
+      link.click();
+    }
+
+    function exportGIF() {
+      const gif = new GIF({
+        workers: 2,
+        quality: 10,
+        width: canvas.width,
+        height: canvas.height
+      });
+
+      const text = document.getElementById("textInput").value.trim();
+      const mode = modeSelect.value;
+      const align = alignSelect.value;
+      const totalFrames = 30;
+
+      if (!text) {
+        logError("请输入要导出的文字");
+        alert("请输入要导出的文字！");
+        return;
+      }
+
+      buildBuffer(text).then(buffer => {
+        const contentWidth = buffer[0].length;
+        const contentHeight = buffer.length;
+
+        if (mode === "static") {
+          renderStatic(buffer, align);
+          gif.addFrame(canvas, { copy: true, delay: 100 });
+        } else {
+          const offset = getStartOffset(mode, contentWidth, contentHeight);
+          
+          for (let i = 0; i < totalFrames; i++) {
+            stepOffset(mode, offset, contentWidth, contentHeight);
+            renderBuffer(buffer, offset.x, offset.y);
+            gif.addFrame(canvas, { copy: true, delay: 100 });
+          }
+        }
+
+        gif.on("finished", function(blob) {
+          const link = document.createElement("a");
+          link.href = URL.createObjectURL(blob);
+          link.download = "led_display.gif";
+          link.click();
+        });
+
+        gif.render();
+      });
+    }
+
+    window.onload = renderDefaultGrayGrid;
+  </script>
+</body>
+</html>
